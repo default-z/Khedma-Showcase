@@ -128,13 +128,24 @@ Verified promises the suite actually checks: every route renders, draft content 
 - A deployment target with no secrets configured is skipped in CI rather than failing the pipeline — deployment targets can be brought online one at a time.
 - All secrets (connection strings, admin bootstrap credentials) are supplied via environment variables at runtime; none exist in the repository or its history.
 
-## 11. Engineering decisions worth calling out
+## 11. Scalability considerations
+
+The cache-invalidation design (§3) is also the scalability decision: a single indexed integer read replaces what would otherwise be a distributed cache with explicit invalidation calls scattered across every content-writing service. That keeps the read path cheap under load without introducing a second piece of infrastructure (Redis or similar) to operate, monitor and keep consistent with the database. The trade-off is explicit: this works because Khedma is a content-driven site with a moderate write rate, not a high-write-throughput system — the right call for what this platform actually is, not a universal pattern.
+
+## 12. Engineering decisions worth calling out
 
 - **Dependencies chosen to avoid licence traps.** SkiaSharp (MIT-licensed) for image processing instead of ImageSharp, whose v4 requires a paid commercial key for this kind of use; xUnit's own built-in assertions instead of FluentAssertions v8, which moved to a commercial licence. Nothing in the stack obligates a future purchase to keep building.
 - **Auditing lives in the persistence layer, not in feature code.** Because `AuditingInterceptor` hooks `SaveChanges` directly, there is no code path for a new admin screen to accidentally ship without being audited — the alternative (each service remembering to log) is exactly the kind of thing that gets forgotten under deadline pressure.
 - **The dashboard is an Area, not a second application**, specifically to fit a hosting constraint (one application slot) without sacrificing architectural cleanliness — the alternative (two hosts sharing a database) is what creates the drift problem this whole design avoids.
 
-## 12. Tech stack
+## 13. Future improvements
+
+Directions the existing architecture is already positioned for, not commitments or a public roadmap:
+
+- **A broader read/write API surface** — the optional `Khedma.WebApi` is deliberately read-only and minimal today; because it already sits behind its own CORS/rate-limiting boundary, extending it for a real third-party integration would not require touching the dashboard's write path.
+- **Per-section analytics** — the first-party analytics model already records page views and events; surfacing per-content-item engagement in the dashboard is a reporting addition on existing data, not a new data-collection system.
+
+## 14. Tech stack
 
 **Backend:** C# · .NET 10 · ASP.NET Core (MVC & Web API) · Entity Framework Core · SQL Server · ASP.NET Core Identity · FluentValidation
 
